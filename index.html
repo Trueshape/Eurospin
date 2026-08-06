@@ -386,6 +386,93 @@
   }
   .history .h-del:hover{ color: var(--stamp-red); }
 
+  .uscite-block{
+    margin-top:16px;
+    padding-top:14px;
+    border-top:1px dotted var(--line);
+  }
+  .uscite-title{
+    font-size:11.5px;
+    font-weight:700;
+    text-transform:uppercase;
+    letter-spacing:0.03em;
+    color: var(--ink);
+    margin-bottom:8px;
+  }
+  .uscite-title small{
+    display:block;
+    font-size:9.5px;
+    font-weight:400;
+    text-transform:none;
+    letter-spacing:0.01em;
+    color: var(--ink-faint);
+    margin-top:2px;
+  }
+  .uscite-controls{
+    display:flex;
+    gap:8px;
+    flex-wrap:wrap;
+    margin-bottom:6px;
+  }
+  .uscite-controls input[type=time]{
+    flex:1 1 120px;
+    background: var(--paper-2);
+    border:1.5px solid var(--ink);
+    border-radius:3px;
+    color: var(--ink);
+    font-family:'Courier New', monospace;
+    font-weight:700;
+    font-size:15px;
+    padding:6px 10px;
+    outline:none;
+    color-scheme: light;
+  }
+  .uscite-controls input[type=time]:focus{
+    border-color: var(--stamp-red);
+    background:#fff;
+  }
+  .uscite-list{
+    list-style:none;
+    margin:0 0 8px;
+    padding:0;
+  }
+  .uscite-list li{
+    display:flex;
+    justify-content:space-between;
+    align-items:center;
+    gap:10px;
+    padding:6px 2px;
+    border-bottom:1px dotted var(--line);
+    font-family:'Courier New', monospace;
+    font-size:12.5px;
+  }
+  .uscite-list li:last-child{ border-bottom:none; }
+  .uscite-list .u-time{ font-weight:700; color: var(--stamp-blue); }
+  .uscite-list .u-del{
+    background:none;
+    border:none;
+    color: var(--ink-faint);
+    font-size:15px;
+    line-height:1;
+    cursor:pointer;
+    padding:0 2px;
+    transition: color .15s;
+  }
+  .uscite-list .u-del:hover{ color: var(--stamp-red); }
+  .uscite-output{
+    font-family:'Courier New', monospace;
+    font-size:12.5px;
+    line-height:1.7;
+    color: var(--stamp-red);
+    padding-top:8px;
+    border-top:1px dashed var(--line);
+  }
+  .uscite-output .uo-empty{
+    color: var(--ink-faint);
+    font-style:italic;
+    font-family: Arial, sans-serif;
+  }
+
   @media (max-width:480px){
     html, body{ height:100%; }
     body{
@@ -436,6 +523,11 @@
     .altro summary{ padding:1dvh 4vw 0.8dvh; font-size:1.4dvh; }
     .altro-body{ padding:2px 4vw 1.5dvh; }
     .altro-controls input[type=number]{ width:100%; flex-basis:100%; }
+    .uscite-block{ margin-top:12px; padding-top:10px; }
+    .uscite-title{ font-size:1.3dvh; }
+    .uscite-title small{ font-size:1.1dvh; }
+    .uscite-controls input[type=time]{ font-size:1.7dvh; padding:0.6dvh 8px; }
+    .uscite-output{ font-size:1.3dvh; }
   }
 </style>
 </head>
@@ -503,12 +595,25 @@
     <details class="altro">
       <summary>Altro</summary>
       <div class="altro-body">
+        <div class="uscite-title">Lista manuale colli</div>
         <div class="altro-controls">
           <button type="button" class="delta-btn delta-minus" id="sottraiBtn">&minus; Sottrai</button>
           <input type="number" id="deltaColli" placeholder="0" min="0" step="1">
           <button type="button" class="delta-btn delta-plus" id="aggiungiBtn">&plus; Aggiungi</button>
         </div>
         <ul class="history" id="history"></ul>
+
+        <div class="uscite-block">
+          <div class="uscite-title">Uscite anticipate<small>ricalcola l'uscita se qualcuno esce prima</small></div>
+          <div class="uscite-controls">
+            <input type="time" id="usciteOrario">
+            <button type="button" class="delta-btn" id="usciteAddBtn">&plus; Persona esce prima</button>
+          </div>
+          <ul class="uscite-list" id="usciteList"></ul>
+          <div class="uscite-output" id="usciteOutput">
+            <span class="uo-empty">Nessuna uscita anticipata inserita.</span>
+          </div>
+        </div>
       </div>
     </details>
 
@@ -553,6 +658,7 @@
       oreLavoro.innerHTML = '—';
       soglia.textContent = '—';
       orarioUscita.textContent = '—';
+      recalcUscite();
       return;
     }
 
@@ -584,6 +690,8 @@
     } else {
       orarioUscita.textContent = '—';
     }
+
+    recalcUscite();
   }
 
   [colli, colliOra, persone, orarioInizio].forEach(el => el.addEventListener('input', calcola));
@@ -618,6 +726,131 @@
     deltaColli.value = '';
     calcola();
     registraStorico(-delta, nuovoTotale);
+  });
+
+  // ---- Uscite anticipate ----
+  const usciteOrarioInput = $('usciteOrario');
+  const usciteListEl = $('usciteList');
+  const usciteOutputEl = $('usciteOutput');
+  let usciteAnticipate = []; // array di stringhe "HH:MM"
+
+  function toMinuti(hStr){
+    if(!hStr) return null;
+    const [h, m] = hStr.split(':').map(Number);
+    if(Number.isNaN(h) || Number.isNaN(m)) return null;
+    return h * 60 + m;
+  }
+
+  function renderUscite(){
+    usciteListEl.innerHTML = '';
+    usciteAnticipate.forEach((t, idx) => {
+      const li = document.createElement('li');
+      li.innerHTML = `
+        <span class="u-time">${t}</span>
+        <button type="button" class="u-del" aria-label="Rimuovi questa uscita">&times;</button>
+      `;
+      li.querySelector('.u-del').addEventListener('click', () => {
+        usciteAnticipate.splice(idx, 1);
+        renderUscite();
+        recalcUscite();
+      });
+      usciteListEl.appendChild(li);
+    });
+  }
+
+  function formatOreMin(totMin){
+    let ore = Math.floor(totMin / 60);
+    let min = Math.round(totMin - ore * 60);
+    if(min === 60){ ore += 1; min = 0; }
+    return `${ore}h${String(min).padStart(2,'0')}min`;
+  }
+
+  function formatOrario(totMin){
+    const m = ((Math.round(totMin) % (24 * 60)) + 24 * 60) % (24 * 60);
+    const h = Math.floor(m / 60);
+    const mm = m % 60;
+    return `${String(h).padStart(2,'0')}:${String(mm).padStart(2,'0')}`;
+  }
+
+  function recalcUscite(){
+    if(usciteAnticipate.length === 0){
+      usciteOutputEl.innerHTML = '<span class="uo-empty">Nessuna uscita anticipata inserita.</span>';
+      return;
+    }
+
+    const c = parseFloat(colli.value) || 0;
+    const ch = parseFloat(colliOra.value) || 0;
+    const pTot = parseInt(persone.value) || 0;
+    const inizioMin = toMinuti(orarioInizio.value);
+
+    if(c <= 0 || ch <= 0 || pTot <= 0 || inizioMin === null){
+      usciteOutputEl.innerHTML = '<span class="uo-empty">Compila colli, colli/h, persone e inizio turno.</span>';
+      return;
+    }
+
+    // ordina le uscite in ordine cronologico rispetto all'inizio turno
+    const eventi = usciteAnticipate
+      .map(t => toMinuti(t))
+      .filter(m => m !== null)
+      .map(m => {
+        let delta = m - inizioMin;
+        if(delta < 0) delta += 24 * 60; // gestisce il cambio giorno
+        return inizioMin + delta;
+      })
+      .sort((a, b) => a - b);
+
+    let rate = pTot * ch; // colli/ora con squadra al completo
+    let colliFatti = 0;
+    let tCorrente = inizioMin;
+    let finishMin = null;
+
+    for(const evMin of eventi){
+      const durataMin = evMin - tCorrente;
+      if(durataMin > 0){
+        const capacita = rate * (durataMin / 60);
+        if(colliFatti + capacita >= c){
+          const rimanenti = c - colliFatti;
+          const minutiNecessari = (rimanenti / rate) * 60;
+          finishMin = tCorrente + minutiNecessari;
+          break;
+        }
+        colliFatti += capacita;
+      }
+      tCorrente = evMin;
+      rate -= ch;
+      if(rate <= 0) break;
+    }
+
+    if(finishMin === null){
+      if(rate <= 0){
+        usciteOutputEl.innerHTML = '<span class="uo-empty">Con queste uscite la squadra si azzera prima di finire il lavoro.</span>';
+        return;
+      }
+      const rimanenti = c - colliFatti;
+      const minutiNecessari = (rimanenti / rate) * 60;
+      finishMin = tCorrente + minutiNecessari;
+    }
+
+    const durataTotaleMin = finishMin - inizioMin;
+
+    // prossima soglia di 15 minuti, calcolata sul ritmo effettivo attivo al momento del completamento
+    const quartiUscite = Math.ceil(durataTotaleMin / 15 - 1e-9);
+    const prossimaSogliaMinUscite = quartiUscite * 15;
+    const colliProxSogliaUscite = Math.max(0, Math.round((prossimaSogliaMinUscite - durataTotaleMin) / 60 * rate));
+
+    usciteOutputEl.innerHTML =
+      `Nuova durata stimata: <strong>${formatOreMin(durataTotaleMin)}</strong><br>` +
+      `Uscita team stimata: <strong>${formatOrario(finishMin)}</strong><br>` +
+      `Colli alla prossima soglia: <strong>${colliProxSogliaUscite}</strong>`;
+  }
+
+  $('usciteAddBtn').addEventListener('click', () => {
+    const val = usciteOrarioInput.value;
+    if(!val) return;
+    usciteAnticipate.push(val);
+    usciteOrarioInput.value = '';
+    renderUscite();
+    recalcUscite();
   });
 
   calcola();

@@ -387,37 +387,54 @@
   .history .h-del:hover{ color: var(--stamp-red); }
 
   @media (max-width:480px){
-    body{ padding:10px 10px; align-items:flex-start; min-height:100dvh; }
-    .logo-wrap{ margin-bottom:-26px; }
-    .logo-wrap img{ width:64px; height:64px; border-width:3px; }
-    .tag{ padding-top:36px; }
-    .tag::before{ inset:6px; }
+    html, body{ height:100%; }
+    body{
+      height:100dvh;
+      min-height:100dvh;
+      padding:1.5dvh 3vw;
+      align-items:stretch;
+      justify-content:center;
+      overflow:hidden;
+    }
+    .page{ width:100%; max-width:none; height:100%; }
 
-    .manifest{ padding:6px 14px 0; }
-    .line{ flex-wrap:wrap; padding:6px 0; gap:4px; }
-    .line .label{ font-size:10.5px; }
-    .line .label small{ font-size:7.5px; margin-top:1px; }
+    .logo-wrap{ margin-bottom:-3dvh; }
+    .logo-wrap img{ width:8dvh; height:8dvh; border-width:3px; }
+
+    .tag{
+      flex:1 1 auto;
+      display:flex;
+      flex-direction:column;
+      padding-top:4.5dvh;
+      min-height:0;
+    }
+    .tag::before{ inset:1dvh 6px; }
+
+    .manifest{ flex:0 0 auto; padding:0.5dvh 4vw 0; }
+    .line{ flex-wrap:wrap; padding:1.2dvh 0; gap:4px; }
+    .line .label{ font-size:1.9dvh; }
+    .line .label small{ font-size:1.3dvh; margin-top:1px; }
     .leader{ display:none; }
     .val{ margin-left:auto; }
 
-    input[type=number], input[type=time], .readout{ width:88px; font-size:13px; padding:4px 6px; }
-    .stepper{ width:88px; gap:3px; }
-    .stepper input[type=number]{ padding:4px 2px; }
-    .step-btn{ flex:0 0 20px; width:20px; height:20px; font-size:12px; }
+    input[type=number], input[type=time], .readout{ width:15vw; min-width:66px; font-size:1.8dvh; padding:0.7dvh 6px; }
+    .stepper{ width:15vw; min-width:66px; gap:3px; }
+    .stepper input[type=number]{ padding:0.7dvh 2px; }
+    .step-btn{ flex:0 0 3.2dvh; width:3.2dvh; height:3.2dvh; font-size:1.7dvh; }
 
-    .stamp-zone{ padding:8px 16px 2px; }
-    .stamp{ width:104px; height:104px; border-width:2px; box-shadow: 0 0 0 3px var(--paper), 0 0 0 4px var(--stamp-red-dim); }
-    .stamp .eyebrow{ font-size:6.5px; }
-    .stamp .flap{ font-size:20px; margin:1px 0; }
-    .stamp .flap small{ font-size:9px; }
+    .stamp-zone{ flex:1 1 auto; display:flex; align-items:center; justify-content:center; padding:0.5dvh 4vw; min-height:0; }
+    .stamp{ width:min(30vw,20dvh); height:min(30vw,20dvh); border-width:2px; box-shadow: 0 0 0 3px var(--paper), 0 0 0 4px var(--stamp-red-dim); }
+    .stamp .eyebrow{ font-size:1.1dvh; }
+    .stamp .flap{ font-size:3.4dvh; margin:1px 0; }
+    .stamp .flap small{ font-size:1.5dvh; }
 
-    .exit-row{ padding:4px 16px 8px; gap:5px; }
-    .exit-label{ font-size:8.5px; }
-    .exit-value{ font-size:14px; }
+    .exit-row{ flex:0 0 auto; padding:0.5dvh 4vw 1.2dvh; gap:5px; }
+    .exit-label{ font-size:1.3dvh; }
+    .exit-value{ font-size:2.1dvh; }
 
-    .altro{ margin-top:2px; }
-    .altro summary{ padding:8px 16px 6px; font-size:9.5px; }
-    .altro-body{ padding:2px 16px 12px; }
+    .altro{ flex:0 0 auto; margin-top:0; }
+    .altro summary{ padding:1dvh 4vw 0.8dvh; font-size:1.4dvh; }
+    .altro-body{ padding:2px 4vw 1.5dvh; }
     .altro-controls input[type=number]{ width:100%; flex-basis:100%; }
   }
 </style>

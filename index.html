@@ -431,6 +431,23 @@
     border-color: var(--stamp-red);
     background:#fff;
   }
+  .uscite-controls select{
+    flex:1 1 110px;
+    background: var(--paper-2);
+    border:1.5px solid var(--ink);
+    border-radius:3px;
+    color: var(--ink);
+    font-family: Arial, sans-serif;
+    font-weight:700;
+    font-size:12.5px;
+    padding:6px 8px;
+    outline:none;
+    color-scheme: light;
+  }
+  .uscite-controls select:focus{
+    border-color: var(--stamp-red);
+    background:#fff;
+  }
   .uscite-list{
     list-style:none;
     margin:0 0 8px;
@@ -447,7 +464,10 @@
     font-size:12.5px;
   }
   .uscite-list li:last-child{ border-bottom:none; }
-  .uscite-list .u-time{ font-weight:700; color: var(--stamp-blue); }
+  .uscite-list .u-time{ font-weight:700; color: var(--ink); }
+  .uscite-list .u-tipo{ font-family: Arial, sans-serif; font-weight:700; font-size:10px; text-transform:uppercase; letter-spacing:0.03em; padding:2px 6px; border-radius:3px; margin-left:6px; }
+  .uscite-list .u-tipo.esce{ color: var(--stamp-red); background: var(--stamp-red-dim); }
+  .uscite-list .u-tipo.entra{ color: var(--stamp-blue); background: rgba(47,77,99,0.18); }
   .uscite-list .u-del{
     background:none;
     border:none;
@@ -527,6 +547,7 @@
     .uscite-title{ font-size:1.3dvh; }
     .uscite-title small{ font-size:1.1dvh; }
     .uscite-controls input[type=time]{ font-size:1.7dvh; padding:0.6dvh 8px; }
+    .uscite-controls select{ font-size:1.5dvh; padding:0.6dvh 6px; }
     .uscite-output{ font-size:1.3dvh; }
   }
 </style>
@@ -604,14 +625,18 @@
         <ul class="history" id="history"></ul>
 
         <div class="uscite-block">
-          <div class="uscite-title">Uscite anticipate<small>ricalcola l'uscita se qualcuno esce prima</small></div>
+          <div class="uscite-title">Variazioni squadra<small>ricalcola l'uscita se qualcuno esce prima o entra dopo</small></div>
           <div class="uscite-controls">
             <input type="time" id="usciteOrario">
-            <button type="button" class="delta-btn" id="usciteAddBtn">&plus; Persona esce prima</button>
+            <select id="usciteTipo">
+              <option value="esce">Esce prima</option>
+              <option value="entra">Entra dopo</option>
+            </select>
+            <button type="button" class="delta-btn" id="usciteAddBtn">&plus; Aggiungi</button>
           </div>
           <ul class="uscite-list" id="usciteList"></ul>
           <div class="uscite-output" id="usciteOutput">
-            <span class="uo-empty">Nessuna uscita anticipata inserita.</span>
+            <span class="uo-empty">Nessuna variazione inserita.</span>
           </div>
         </div>
       </div>
@@ -728,11 +753,12 @@
     registraStorico(-delta, nuovoTotale);
   });
 
-  // ---- Uscite anticipate ----
+  // ---- Variazioni squadra (uscite anticipate / entrate posticipate) ----
   const usciteOrarioInput = $('usciteOrario');
+  const usciteTipoInput = $('usciteTipo');
   const usciteListEl = $('usciteList');
   const usciteOutputEl = $('usciteOutput');
-  let usciteAnticipate = []; // array di stringhe "HH:MM"
+  let usciteAnticipate = []; // array di {orario:"HH:MM", tipo:"esce"|"entra"}
 
   function toMinuti(hStr){
     if(!hStr) return null;
@@ -743,11 +769,12 @@
 
   function renderUscite(){
     usciteListEl.innerHTML = '';
-    usciteAnticipate.forEach((t, idx) => {
+    usciteAnticipate.forEach((ev, idx) => {
       const li = document.createElement('li');
+      const tipoLabel = ev.tipo === 'entra' ? 'Entra' : 'Esce';
       li.innerHTML = `
-        <span class="u-time">${t}</span>
-        <button type="button" class="u-del" aria-label="Rimuovi questa uscita">&times;</button>
+        <span><span class="u-time">${ev.orario}</span><span class="u-tipo ${ev.tipo}">${tipoLabel}</span></span>
+        <button type="button" class="u-del" aria-label="Rimuovi questa variazione">&times;</button>
       `;
       li.querySelector('.u-del').addEventListener('click', () => {
         usciteAnticipate.splice(idx, 1);
@@ -774,7 +801,7 @@
 
   function recalcUscite(){
     if(usciteAnticipate.length === 0){
-      usciteOutputEl.innerHTML = '<span class="uo-empty">Nessuna uscita anticipata inserita.</span>';
+      usciteOutputEl.innerHTML = '<span class="uo-empty">Nessuna variazione inserita.</span>';
       return;
     }
 
@@ -788,24 +815,25 @@
       return;
     }
 
-    // ordina le uscite in ordine cronologico rispetto all'inizio turno
+    // ordina le variazioni in ordine cronologico rispetto all'inizio turno
     const eventi = usciteAnticipate
-      .map(t => toMinuti(t))
-      .filter(m => m !== null)
-      .map(m => {
+      .map(ev => {
+        const m = toMinuti(ev.orario);
+        if(m === null) return null;
         let delta = m - inizioMin;
         if(delta < 0) delta += 24 * 60; // gestisce il cambio giorno
-        return inizioMin + delta;
+        return { min: inizioMin + delta, tipo: ev.tipo };
       })
-      .sort((a, b) => a - b);
+      .filter(ev => ev !== null)
+      .sort((a, b) => a.min - b.min);
 
     let rate = pTot * ch; // colli/ora con squadra al completo
     let colliFatti = 0;
     let tCorrente = inizioMin;
     let finishMin = null;
 
-    for(const evMin of eventi){
-      const durataMin = evMin - tCorrente;
+    for(const ev of eventi){
+      const durataMin = ev.min - tCorrente;
       if(durataMin > 0){
         const capacita = rate * (durataMin / 60);
         if(colliFatti + capacita >= c){
@@ -816,14 +844,14 @@
         }
         colliFatti += capacita;
       }
-      tCorrente = evMin;
-      rate -= ch;
+      tCorrente = ev.min;
+      rate += (ev.tipo === 'entra' ? ch : -ch);
       if(rate <= 0) break;
     }
 
     if(finishMin === null){
       if(rate <= 0){
-        usciteOutputEl.innerHTML = '<span class="uo-empty">Con queste uscite la squadra si azzera prima di finire il lavoro.</span>';
+        usciteOutputEl.innerHTML = '<span class="uo-empty">Con queste variazioni la squadra si azzera prima di finire il lavoro.</span>';
         return;
       }
       const rimanenti = c - colliFatti;
@@ -847,7 +875,7 @@
   $('usciteAddBtn').addEventListener('click', () => {
     const val = usciteOrarioInput.value;
     if(!val) return;
-    usciteAnticipate.push(val);
+    usciteAnticipate.push({ orario: val, tipo: usciteTipoInput.value });
     usciteOrarioInput.value = '';
     renderUscite();
     recalcUscite();

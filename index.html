@@ -648,24 +648,64 @@
   const deltaColli = $('deltaColli');
   const history = $('history');
 
-  function registraStorico(delta, nuovoTotale){
+  // ---- Persistenza tra sessioni ----
+  const STORAGE_KEY = 'eurospinManifest';
+  const DODICI_ORE_MS = 12 * 60 * 60 * 1000;
+  let historyEntries = []; // {id, delta, totale, ts} — scadono dopo 12h
+  let salvataggioSospeso = false;
+
+  function saveState(){
+    if(salvataggioSospeso) return;
+    const state = {
+      colli: colli.value,
+      persone: persone.value,
+      history: historyEntries,
+      uscite: usciteAnticipate
+    };
+    try{ localStorage.setItem(STORAGE_KEY, JSON.stringify(state)); }catch(e){}
+  }
+
+  function pruneScaduti(){
+    const ora = Date.now();
+    const hPrima = historyEntries.length, uPrima = usciteAnticipate.length;
+    historyEntries = historyEntries.filter(h => ora - (h.ts || 0) < DODICI_ORE_MS);
+    usciteAnticipate = usciteAnticipate.filter(u => ora - (u.ts || 0) < DODICI_ORE_MS);
+    return historyEntries.length !== hPrima || usciteAnticipate.length !== uPrima;
+  }
+
+  function creaHistoryLi(entry){
+    const { id, delta, totale } = entry;
     const li = document.createElement('li');
     const segno = delta > 0 ? '+' : '−';
     const classe = delta > 0 ? 'plus' : 'minus';
-    li.dataset.delta = delta;
+    li.dataset.id = id;
     li.innerHTML = `
       <span class="h-delta ${classe}">${segno}${Math.abs(delta)}</span>
-      <span class="h-total">→ ${nuovoTotale} colli</span>
+      <span class="h-total">→ ${totale} colli</span>
       <button type="button" class="h-del" aria-label="Elimina questa modifica">&times;</button>
     `;
     li.querySelector('.h-del').addEventListener('click', () => {
-      const d = parseFloat(li.dataset.delta) || 0;
+      const d = parseFloat(delta) || 0;
       const totaleAggiornato = Math.max(0, (parseFloat(colli.value) || 0) - d);
       colli.value = totaleAggiornato;
+      historyEntries = historyEntries.filter(h => h.id !== id);
       li.remove();
       calcola();
+      saveState();
     });
-    history.prepend(li);
+    return li;
+  }
+
+  function renderHistoryFromStorage(){
+    history.innerHTML = '';
+    historyEntries.forEach(entry => history.appendChild(creaHistoryLi(entry)));
+  }
+
+  function registraStorico(delta, nuovoTotale){
+    const entry = { id: Date.now() + '-' + Math.random().toString(36).slice(2), delta, totale: nuovoTotale, ts: Date.now() };
+    historyEntries.unshift(entry);
+    history.prepend(creaHistoryLi(entry));
+    saveState();
   }
 
   function calcola(){
@@ -678,6 +718,7 @@
       soglia.textContent = '—';
       orarioUscita.textContent = '—';
       recalcUscite();
+      saveState();
       return;
     }
 
@@ -711,6 +752,7 @@
     }
 
     recalcUscite();
+    saveState();
   }
 
   [colli, colliOra, persone, orarioInizio].forEach(el => el.addEventListener('input', calcola));
@@ -774,6 +816,7 @@
         usciteAnticipate.splice(idx, 1);
         renderUscite();
         recalcUscite();
+        saveState();
       });
       usciteListEl.appendChild(li);
     });
@@ -869,13 +912,48 @@
   $('usciteAddBtn').addEventListener('click', () => {
     const val = usciteOrarioInput.value;
     if(!val) return;
-    usciteAnticipate.push({ orario: val, tipo: usciteTipoInput.value });
+    usciteAnticipate.push({ orario: val, tipo: usciteTipoInput.value, ts: Date.now() });
     usciteOrarioInput.value = '';
     renderUscite();
     recalcUscite();
+    saveState();
   });
 
+  // ---- Caricamento stato salvato ----
+  function caricaState(){
+    salvataggioSospeso = true;
+    try{
+      const raw = localStorage.getItem(STORAGE_KEY);
+      if(raw){
+        const state = JSON.parse(raw);
+        if(state.colli !== undefined && state.colli !== '') colli.value = state.colli;
+        if(state.persone !== undefined && state.persone !== '') persone.value = state.persone;
+        historyEntries = Array.isArray(state.history) ? state.history : [];
+        usciteAnticipate = Array.isArray(state.uscite) ? state.uscite : [];
+      }
+    }catch(e){
+      historyEntries = [];
+      usciteAnticipate = [];
+    }
+    pruneScaduti();
+    renderHistoryFromStorage();
+    renderUscite();
+    salvataggioSospeso = false;
+  }
+
+  caricaState();
   calcola();
+  saveState();
+
+  // rimuove automaticamente dallo storico e dalle variazioni squadra le voci più vecchie di 12h
+  setInterval(() => {
+    if(pruneScaduti()){
+      renderHistoryFromStorage();
+      renderUscite();
+      recalcUscite();
+      saveState();
+    }
+  }, 5 * 60 * 1000);
 </script>
 </body>
 </html>

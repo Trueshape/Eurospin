@@ -545,6 +545,11 @@
     .uscite-output{ font-size:1.3dvh; }
   }
 </style>
+  <link rel="manifest" href="manifest.json">
+  <meta name="theme-color" content="#0056B9">
+  <link rel="icon" type="image/png" sizes="32x32" href="favicon-32.png">
+  <link rel="icon" type="image/png" sizes="192x192" href="icon-192.png">
+  <link rel="apple-touch-icon" href="apple-touch-icon.png">
 </head>
 <body>
 <div class="page">
@@ -659,6 +664,7 @@
     const state = {
       colli: colli.value,
       persone: persone.value,
+      orarioInizio: orarioInizio.value,
       history: historyEntries,
       uscite: usciteAnticipate
     };
@@ -928,6 +934,7 @@
         const state = JSON.parse(raw);
         if(state.colli !== undefined && state.colli !== '') colli.value = state.colli;
         if(state.persone !== undefined && state.persone !== '') persone.value = state.persone;
+        if(state.orarioInizio) orarioInizio.value = state.orarioInizio;
         historyEntries = Array.isArray(state.history) ? state.history : [];
         usciteAnticipate = Array.isArray(state.uscite) ? state.uscite : [];
       }
